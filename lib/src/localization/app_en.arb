@@ -1,0 +1,6 @@
+{
+  "appTitle": "brick_breaker",
+  "@appTitle": {
+    "description": "The title of the application"
+  }
+}
