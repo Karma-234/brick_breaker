@@ -7,6 +7,7 @@ import 'package:brick_breaker/src/main/player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'game_over_prompt.dart';
 import 'my_ball.dart';
 
 enum BallDirection { up, down, right, left }
@@ -37,17 +38,24 @@ class _GameViewState extends State<GameView> {
   //Brick position
   static double brickX = -1 + wallGap;
   static double brickY = -0.88;
-  static bool isBrickBroken = false;
-  static double brickWidth = 0.3;
+  static double brickWidth = 0.5;
   static double brickHeight = 0.05;
-  static int noOfBricks = 4;
+  static int noOfBricks = 3;
   static double gap = 0.01;
   static double wallGap =
       0.5 * (2 - noOfBricks * brickWidth - (noOfBricks - 1) * gap);
   // Game timer
   Timer? _gameTimer;
-  var myBricks = List.generate(noOfBricks,
-      (i) => MyBrickModel(brickX + i * (brickWidth + gap), brickY, false));
+  var myBricks = List.generate(
+      noOfBricks,
+      (i) => MyBrickModel(
+          (brickX + i * (brickWidth + gap)) >= 1
+              ? brickX - i * (brickWidth - gap)
+              : brickX + i * (brickWidth + gap),
+          (brickX + i * (brickWidth + gap)) >= 1
+              ? brickY + brickHeight
+              : brickY,
+          false));
   var myBricksPositions = List.generate(
       noOfBricks, (i) => [brickX + i * (brickWidth * gap), brickY, false]);
 
@@ -102,10 +110,8 @@ class _GameViewState extends State<GameView> {
       if (ballY >= 0.85 &&
           ballX >= playerXXaxis - playerWidth &&
           ballX <= playerXXaxis + playerWidth) {
-        // ballX += playerXXaxis;
         ballDirection = BallDirection.up;
       } else if (ballY <= -0.85) {
-        // ballX += brickX;
         ballDirection = BallDirection.down;
       }
       if (ballX >= 1) {
@@ -124,8 +130,49 @@ class _GameViewState extends State<GameView> {
         setState(() {
           myBricks[i].isBroken = true;
           ballDirection = BallDirection.down;
+
+          double left = (myBricks[i].xAxis - ballX).abs();
+          double right = (myBricks[i].xAxis + brickWidth - ballX).abs();
+          double top = (myBricks[i].xAxis - ballY).abs();
+          double bottom = (myBricks[i].xAxis + brickHeight - ballY).abs();
+          String min = findMinimumDistance(left, right, top, bottom);
+          switch (min) {
+            case 'left':
+              ballXDirection = BallDirection.left;
+              break;
+            case 'right':
+              ballXDirection = BallDirection.right;
+              break;
+            case 'top':
+              ballDirection = BallDirection.up;
+              break;
+            case 'bottom':
+              ballDirection = BallDirection.down;
+              break;
+            default:
+              ballDirection = BallDirection.down;
+          }
         });
       }
+    }
+  }
+
+  String findMinimumDistance(double a, double b, double c, double d) {
+    var myDistances = [a, b, c, d];
+    var currentMinimum = a;
+    for (var i = 0; i < myDistances.length; i++) {
+      if (myDistances[i] < currentMinimum) {
+        currentMinimum = myDistances[i];
+      }
+    }
+    if ((currentMinimum - a).abs() > 0.01) {
+      return 'left';
+    } else if ((currentMinimum - b).abs() > 0.01) {
+      return 'right';
+    } else if ((currentMinimum - c).abs() > 0.01) {
+      return 'top';
+    } else {
+      return 'bottom';
     }
   }
 
@@ -146,35 +193,37 @@ class _GameViewState extends State<GameView> {
               ),
               Align(
                 alignment: Alignment(ballX, ballY),
-                child: const MyBall(),
+                child: MyBall(
+                  isGameStarted: isStarted,
+                ),
               ),
-              RawKeyboardListener(
-                focusNode: FocusNode(),
-                onKey: (value) {
+              GestureDetector(
+                onPanUpdate: (details) {
                   if (isStarted) {
-                    if (value.isKeyPressed(LogicalKeyboardKey.arrowLeft)) {
-                      playerXXaxis + playerWidth > -1
-                          ? playerXXaxis -= 0.1
-                          : null;
-                    } else if (value
-                        .isKeyPressed(LogicalKeyboardKey.arrowRight)) {
-                      playerXXaxis < 1 ? playerXXaxis += 0.1 : null;
-                    }
+                    double x = details.delta.dx;
+                    setState(() {
+                      if (x < 0) {
+                        playerXXaxis + playerWidth > -1
+                            ? playerXXaxis -= 0.02
+                            : null;
+                      } else {
+                        playerXXaxis < 1 ? playerXXaxis += 0.02 : null;
+                      }
+                    });
                   }
                 },
-                child: GestureDetector(
-                  onPanUpdate: (details) {
+                child: RawKeyboardListener(
+                  focusNode: FocusNode(),
+                  onKey: (value) {
                     if (isStarted) {
-                      double x = details.delta.dx;
-                      setState(() {
-                        if (x < 0) {
-                          playerXXaxis + playerWidth > -1
-                              ? playerXXaxis -= 0.02
-                              : null;
-                        } else {
-                          playerXXaxis < 1 ? playerXXaxis += 0.02 : null;
-                        }
-                      });
+                      if (value.isKeyPressed(LogicalKeyboardKey.arrowLeft)) {
+                        playerXXaxis + playerWidth > -1
+                            ? playerXXaxis -= 0.1
+                            : null;
+                      } else if (value
+                          .isKeyPressed(LogicalKeyboardKey.arrowRight)) {
+                        playerXXaxis < 1 ? playerXXaxis += 0.1 : null;
+                      }
                     }
                   },
                   child: MyPlayer(
@@ -192,39 +241,10 @@ class _GameViewState extends State<GameView> {
                         brickHeight: brickHeight,
                       ))
                   .toList(),
-              // MyBrick(
-              //   brickX: brickX,
-              //   brickY: brickY,
-              //   brickWidth: brickWidth,
-              //   isBroken: isBrickBroken,
-              // )
             ],
           ),
         ),
       ),
     );
-  }
-}
-
-class GameOverPrompt extends StatelessWidget {
-  final bool isGameOver;
-  const GameOverPrompt({
-    super.key,
-    this.isGameOver = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return !isGameOver
-        ? const SizedBox.shrink()
-        : Align(
-            alignment: const Alignment(0, -0.3),
-            child: Text(
-              'G A M E O V E R!',
-              style: TextStyle(
-                  color: Colors.red[700],
-                  fontSize: 36,
-                  fontWeight: FontWeight.w600),
-            ));
   }
 }
